@@ -47,6 +47,7 @@
     
     [self showDataForAlbumAtIndex:currentAlbumIndex];
     
+    // this is test
 }
 
 
