@@ -34,11 +34,26 @@
         [[NSNotificationCenter defaultCenter] postNotificationName:@"BLDownloadImageNotification"
                                                             object:self
                                                           userInfo:@{@"imageView":coverImage, @"coverUrl":albumCover}];
-        
         [self addSubview:indicator];
+        
+        [coverImage addObserver:self forKeyPath:@"image" options:0 context:nil];
+
     }
     return self;
     
+}
+
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context{
+
+    if ([keyPath isEqualToString:@"image"]) {
+        [indicator stopAnimating];
+    }
+}
+
+
+-(void)dealloc{
+    
+    [coverImage removeObserver:self forKeyPath:@"image"];
 }
 /*
 // Only override drawRect: if you perform custom drawing.

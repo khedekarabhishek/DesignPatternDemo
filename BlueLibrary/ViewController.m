@@ -17,6 +17,10 @@
     int currentAlbumIndex;
     HorizontalScroller *scroller;
 
+    UIToolbar *toolbar;
+    // We will use this array as a stack to push and pop operation for the undo option
+    NSMutableArray *undoStack;
+
 }
 
 @end
@@ -29,6 +33,16 @@
     self.view.backgroundColor = [UIColor colorWithRed:0.76f green:0.81f blue:0.87f alpha:1];
     currentAlbumIndex = 0;
 
+    
+    toolbar = [[UIToolbar alloc] init];
+    UIBarButtonItem *undoItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemUndo target:self action:@selector(undoAction)];
+    undoItem.enabled = NO;
+    UIBarButtonItem *space = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+    UIBarButtonItem *delete = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemTrash target:self action:@selector(deleteAlbum)];
+    [toolbar setItems:@[undoItem,space,delete]];
+    [self.view addSubview:toolbar];
+    undoStack = [[NSMutableArray alloc] init];
+
     allAlbums = [[LibraryAPI sharedInstance] getAlbums];
     
     
@@ -38,6 +52,8 @@
     dataTable.backgroundView = nil;
     [self.view addSubview:dataTable];
     
+    [self loadPreviousState];
+
     scroller = [[HorizontalScroller alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, 120)];
     scroller.backgroundColor = [UIColor colorWithRed:0.24f green:0.35f blue:0.49f alpha:1];
     scroller.delegate = self;
@@ -47,7 +63,13 @@
     
     [self showDataForAlbumAtIndex:currentAlbumIndex];
     
-    // this is test
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(saveCurrentState) name:UIApplicationDidEnterBackgroundNotification object:nil];
+}
+
+- (void)viewWillLayoutSubviews
+{
+    toolbar.frame = CGRectMake(0, self.view.frame.size.height-44, self.view.frame.size.width, 44);
+    dataTable.frame = CGRectMake(0, 130, self.view.frame.size.width, self.view.frame.size.height - 200);
 }
 
 
@@ -68,6 +90,53 @@
     
     // we have the data we need, let's refresh our tableview
     [dataTable reloadData];
+}
+
+
+
+- (void)addAlbum:(Album*)album atIndex:(int)index
+{
+    [[LibraryAPI sharedInstance] addAlbum:album atIndex:index];
+    currentAlbumIndex = index;
+    [self reloadScroller];
+}
+
+- (void)deleteAlbum{
+    
+    if (allAlbums.count > 0) {
+        Album *deletedALbum = allAlbums[currentAlbumIndex];
+        
+        NSMethodSignature *sig = [self methodSignatureForSelector:@selector(addAlbum:atIndex:)];
+        NSInvocation *undoAction = [NSInvocation invocationWithMethodSignature:sig];
+        [undoAction setTarget:self];
+        [undoAction setSelector:@selector(addAlbum:atIndex:)];
+        [undoAction setArgument:&deletedALbum atIndex:2];
+        [undoAction setArgument:&currentAlbumIndex atIndex:3];
+        [undoAction retainArguments];
+        
+        [undoStack addObject:undoAction];
+        
+        [[LibraryAPI sharedInstance] deleteAlbumAtIndex:currentAlbumIndex];
+        [self reloadScroller];
+        
+        [toolbar.items[0] setEnabled:YES];
+    }
+    
+}
+
+
+- (void)undoAction{
+    
+    if (undoStack.count > 0) {
+        NSInvocation *undoAction = [undoStack lastObject];
+        [undoStack removeLastObject];
+        [undoAction invoke];
+    }
+    
+    if (undoStack.count == 0)
+    {
+        [toolbar.items[0] setEnabled:NO];
+    }
 }
 
 #pragma mark - UITableviewDatasource
@@ -107,6 +176,23 @@
     [self showDataForAlbumAtIndex:currentAlbumIndex];
 }
 
+- (void)saveCurrentState
+{
+    // When the user leaves the app and then comes back again, he wants it to be in the exact same state
+    // he left it. In order to do this we need to save the currently displayed album.
+    // Since it's only one piece of information we can use NSUserDefaults.
+    [[NSUserDefaults standardUserDefaults] setInteger:currentAlbumIndex forKey:@"currentAlbumIndex"];
+    
+    [[LibraryAPI sharedInstance] saveAlbums];
+    
+}
+
+- (void)loadPreviousState
+{
+    currentAlbumIndex = [[NSUserDefaults standardUserDefaults] integerForKey:@"currentAlbumIndex"];
+    [self showDataForAlbumAtIndex:currentAlbumIndex];
+}
+
 
 #pragma mark - HorizontalScrollerDelegate methods
 - (void)horizontalScroller:(HorizontalScroller *)scroller clickedViewAtIndex:(int)index
@@ -124,6 +210,16 @@
 {
     Album *album = allAlbums[index];
     return [[AlbumView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) albumCover:album.coverUrl];
+}
+
+-(NSInteger)initialViewIndexForHorizontalScroller:(HorizontalScroller *)scroller{
+    return currentAlbumIndex;
+}
+
+
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 @end

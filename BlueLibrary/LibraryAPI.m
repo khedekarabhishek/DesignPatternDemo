@@ -7,6 +7,7 @@
 //
 
 #import "LibraryAPI.h"
+#import "AlbumView.h"
 
 @interface LibraryAPI () {
     PersistencyManager *persistencyManager;
@@ -72,7 +73,10 @@
 }
 
 
-
+- (void)saveAlbums
+{
+    [persistencyManager saveAlbums];
+}
 
 - (void)dealloc
 {
@@ -100,6 +104,7 @@
             dispatch_sync(dispatch_get_main_queue(), ^{
                 imageView.image = image;
                 [persistencyManager saveImage:image filename:[coverUrl lastPathComponent]];
+                
             });
         });
     }

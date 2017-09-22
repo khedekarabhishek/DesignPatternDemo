@@ -25,7 +25,6 @@
     NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:url]];
     return [UIImage imageWithData:data];
     
-    // HTTP client is changed
 }
 
 @end
